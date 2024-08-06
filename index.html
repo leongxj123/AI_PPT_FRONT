@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Ai PPT</title>
+    <style>
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+            background-color: #fff;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: #c1c1c1;
+        }
+
+        #div1 {
+            text-align: center;
+            margin-top: 60px;
+        }
+
+        #div1, #div2, #div3, #nextTo2, #nextTo3, #desc, #right_canvas, #pptDownload {
+            display: none;
+        }
+
+        #outline {
+            text-align: left;
+            margin: 0 calc(20vw);
+        }
+
+        #templates {
+            width: 80%;
+            max-width: 1050px;
+            margin: auto;
+            display: flex;
+            flex-wrap: wrap;
+            flex-direction: row;
+            align-items: center;
+            text-align: center;
+        }
+
+        .template {
+            margin: 8px;
+            width: 240px;
+            height: 136px;
+            cursor: pointer;
+            overflow: hidden;
+            border-radius: 12px;
+            background-color: #ecedf4;
+            border: 2px solid transparent;
+        }
+
+        .template img {
+            width: 100%;
+            height: 100%;
+            opacity: 1;
+            object-fit: cover;
+            transition: all .6s ease;
+        }
+
+        .template img:hover {
+            transform: scale(1.2);
+            transition-duration: .3s;
+        }
+
+        h1 {
+            font-size: 1.6em;
+            margin-block-start: 0.5em;
+            margin-block-end: 0.5em;
+        }
+
+        h2 {
+            font-size: 1.3em;
+            margin-block-start: 0.7em;
+            margin-block-end: 0.7em;
+        }
+
+        h3 {
+            font-size: 1.1em;
+            margin-block-start: 0.9em;
+            margin-block-end: 0.9em;
+        }
+
+        h4 {
+            margin-block-start: 1.1em;
+            margin-block-end: 1.1em;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        #pptDownload {
+            float: right;
+        }
+
+        .left_div {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 96vh;
+            justify-content: center;
+            position: absolute;
+            width: 158px;
+        }
+
+        .left_div_child {
+            background: #fff;
+            border: 1px solid #fff;
+            border-radius: 6px;
+            box-shadow: 0 4px 10px 0 #0003;
+            margin-left: 12px;
+            margin-top: 28px;
+            max-height: calc(100vh - 130px);
+            width: 200px;
+        }
+
+        .left_div_child_child {
+            max-height: calc(100vh - 130px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 0 8px 0 2px;
+        }
+
+        .left_div_item {
+            display: flex;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+
+        .left_div_item_index {
+            color: #8d90a5;
+            flex-shrink: 0;
+            padding-right: 6px;
+            padding-top: 30px;
+            text-align: right;
+            width: 23px;
+        }
+
+        .left_div_item_img {
+            height: 80px;
+            border: 1px solid #ccc;
+        }
+
+        .right_div {
+            padding-top: calc(10vh);
+            position: absolute;
+            margin-left: 280px;
+        }
+
+        #right_canvas {
+            margin: 0px auto;
+            display: block;
+            border: 1px solid #666;
+        }
+
+        .item_select {
+            border: 2px solid #491ff8;
+        }
+
+        .draw_el_class {
+            position: fixed;
+        }
+
+        .draw_el_class:hover {
+            cursor: text;
+            border: 1.5px solid red;
+        }
+    </style>
+</head>
+<body>
+<!-- 大纲生成 -->
+<div id="div1">
+    <div style="margin-bottom: 50px;">
+        <h1>🤖 AI智能生成PPT演示文稿</h1>
+        <div style="font-size: 14px;color: #999;">生成大纲 ---> 挑选模板 --> 实时生成PPT</div>
+    </div>
+    <label>主题：</label>
+    <input type="text" id="subject" placeholder="请输入PPT主题"/>
+    <button onclick="generateOutline()">生成大纲</button>
+    <button id="nextTo2" class="next_but" onclick="nextTo2()">下一步：选择模板</button>
+    <div id="outline"></div>
+</div>
+<!-- 选择模板 -->
+<div id="div2">
+    <div style="text-align: center;margin: 10px;">
+        <div>---- 选择模板 ----</div>
+        <button id="nextTo3" class="next_but" style="margin-top: 10px;" onclick="nextTo3()">下一步：生成PPT</button>
+    </div>
+    <div id="templates">模板加载中...</div>
+</div>
+<!-- PPT页面 -->
+<div id="div3">
+    <div id="desc" style="text-align: center;margin-top: 20px">
+        <span id="desc_msg">正在生成中，请稍后...</span>
+        <span id="desc_time" style="margin-left: 5px"></span>
+    </div>
+    <div class="left_div">
+        <div class="left_div_child">
+            <div id="left_image_list" class="left_div_child_child">
+                <!--
+                <div class="left_div_item" onclick="drawPptx(0)">
+                    <div class="left_div_item_index">1</div>
+                    <img src="1.png" class="left_div_item_img" />
+                </div>
+                -->
+            </div>
+        </div>
+    </div>
+    <div class="right_div">
+        <select id="insert_element" style="display: none;margin-left: 10px"
+                onchange="insertElement(this.value.split(',')[0], this.value.split(',')[1])">
+            <option value="">-- 插入元素 --</option>
+            <option value="text,title1">插入大标题</option>
+            <option value="text,title2">插入副标题</option>
+            <option value="text,content">插入正文文本</option>
+            <option value="image">插入图片</option>
+            <option value="geometry">插入随机形状</option>
+            <option value="table">插入表格</option>
+            <option value="chart,bar">插入柱状图</option>
+            <option value="chart,pie">插入饼图</option>
+            <option value="chart,doughnut">插入环形图</option>
+            <option value="chart,line">插入折线图</option>
+        </select>
+        <a id="pptDownload" href="javascript:downloadPptx()">渲染pptx并下载</a>
+        <div id="right_container" style="padding-top: 8px;">
+            <!--<canvas id="right_canvas" width="1920" height="1080" style="width: 960px;height: 540px;"></canvas>-->
+            <svg id="right_canvas"></svg>
+        </div>
+    </div>
+</div>
+
+<script src="static/sse.js"></script>
+<script src="static/chart.js"></script>
+<script src="static/geometry.js"></script>
+<script src="static/element.js"></script>
+<script src="static/ppt2svg.js"></script>
+<script src="static/ppt2canvas.js"></script>
+<script src="static/base64js.js"></script>
+<script src="static/pako.js"></script>
+<script src="static/marked.js"></script>
+<script>
+    const baseUrl = 'https://kfcv50.link/docmee/v1'; // 新增baseUrl变量
+    let apiKey = 'sk-XRxoiUHyUQYhhl8kD4272199Fb644e498895F3A58dD50a5b'; // 新增apiKey变量
+    const authorization = 'Bearer sk-XRxoiUHyUQYhhl8kD4272199Fb644e498895F3A58dD50a5b'; // 新增authorization变量
+    var pptxId = null
+    var outline = ''
+    var templateId = ''
+    var pptxObj = null
+    var selectIdx = 0
+    var mTimer = null
+
+    var markdownRenderer = new marked.Renderer()
+    marked.setOptions({
+        renderer: markdownRenderer,
+        async: false, // 是否异步渲染
+        gfm: true, // 运行github标准的markdown
+        tables: true, // 表格
+        breaks: false, // 回车换行
+        pedantic: false, // 兼容隐晦部分
+        silent: true // 错误时不抛异常
+    })
+
+    // svg
+    var painter = new Ppt2Svg('right_canvas')
+    var canvas = painter.svgNode()
+    painter.setMode('edit')
+
+    // 新增createApiToken函数
+    async function createApiToken() {
+        try {
+            const response = await fetch(`${baseUrl}/api/user/createApiToken`, {
+                method: 'POST',
+                headers: {
+                    'Api-Key': apiKey,
+                    'Authorization': apiKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    uid: '',
+                    limit: null
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.code !== 0) {
+                throw new Error(data.message);
+            }
+
+            apiKey = data.data.token;
+            console.log('API Token 创建成功');
+        } catch (error) {
+            console.error(`创建接口 token 异常：${error.message}`);
+        }
+    }
+
+
+    // 页面加载时调用createApiToken
+    window.onload = createApiToken;
+
+    function generateOutline() {
+        outline = ''
+        let subject = document.getElementById('subject').value
+        if (!subject) {
+            alert('请输入主题')
+            return
+        }
+        if (subject.length < 3) {
+            alert('主题太短')
+            return
+        }
+        const url = `${baseUrl}/api/ppt/generateOutline?apiKey=${apiKey}`
+        var source = new SSE(url, {
+            method: 'POST',
+            // withCredentials: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Authorization': authorization,
+                'token': apiKey
+            },
+            payload: JSON.stringify({subject}),
+        })
+        source.onmessage = function (data) {
+            let json = JSON.parse(data.data)
+            if (json.status == -1) {
+                alert('生成大纲异常：' + json.error)
+                return
+            }
+            outline += json.text
+            document.getElementById('outline').innerHTML = window.marked.marked(outline.replaceAll('```markdown', '').replaceAll('```', ''))
+            window.scrollTo({behavior: 'smooth', top: document.body.scrollHeight})
+        }
+        source.onend = function (data) {
+            if (data.data.startsWith('{') && data.data.endsWith('}')) {
+                const json = JSON.parse(data.data)
+                if (json.code != 0) {
+                    alert('生成大纲异常：' + json.message)
+                    return
+                }
+            }
+            document.getElementById('nextTo2').style.display = 'inline-block'
+            window.scrollTo(0, 0)
+        }
+        source.onerror = function (err) {
+            console.error('生成大纲异常', err)
+            alert('生成大纲异常')
+        }
+        source.stream()
+    }
+
+    function nextTo2() {
+        document.getElementById('nextTo2').style.display = 'none'
+        document.getElementById('div1').style.display = 'none'
+        document.getElementById('div2').style.display = 'block'
+        window.scrollTo(0, 0)
+        loadTemplates()
+    }
+
+    function loadTemplates() {
+        let url = `${baseUrl}/api/ppt/randomTemplates?apiKey=${apiKey}`
+        let xhr = new XMLHttpRequest()
+        // 请求头
+        xhr.open('POST', url, true)
+        xhr.setRequestHeader('token', apiKey)
+        xhr.setRequestHeader('Authorization', authorization)
+        xhr.setRequestHeader('Content-Type', 'application/json')
+        xhr.send(JSON.stringify({page: 1, size: 28, filters: {type: 1}}))
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    let resp = JSON.parse(xhr.responseText)
+                    let list = resp.data
+                    let templates = ''
+                    for (let i = 0; i < list.length; i++) {
+                        let id = list[i].id
+                        let coverUrl = list[i].coverUrl + '?token=' + apiKey
+                        let html = `<div id="${id}" class="template" onclick="selectTemplate('${id}')">`
+                        html += `<img id="img_${id}" src="${coverUrl}" />`
+                        html += '</div>'
+                        templates += html
+                    }
+                    templates += '<div style="width: 100%;padding: 10px;text-align: center;"><button onclick="loadTemplates()">换一批</button></div>'
+                    document.getElementById('templates').innerHTML = templates
+                    selectTemplate(list[0].id)
+                }
+            }
+        }
+        xhr.onerror = function (e) {
+            console.error(e)
+        }
+    }
+
+    async function selectTemplate(id) {
+        if (templateId) {
+            let ele = document.getElementById(templateId)
+            if (ele) {
+                ele.classList.remove('item_select')
+            }
+        }
+        templateId = id
+        document.getElementById('nextTo3').style.display = 'inline-block'
+        document.getElementById(id).classList.add('item_select')
+        let color = await calcSubjectColor(document.getElementById(`img_${id}`).src)
+        document.body.style.background = color
+    }
+
+    function nextTo3() {
+        document.body.style.background = null
+        document.getElementById('nextTo3').style.display = 'none'
+        document.getElementById('div2').style.display = 'none'
+        document.getElementById('div3').style.display = 'block'
+        generatePptx()
+    }
+
+    function generatePptx() {
+        var count = 0
+        var timer = setInterval(() => {
+            count = count + 1
+            document.getElementById('desc').style.display = 'block'
+            document.getElementById('desc_time').innerHTML = count + '秒'
+        }, 1000)
+        const url = `${baseUrl}/api/ppt/generateContent?apiKey=${apiKey}`
+        var source = new SSE(url, {
+            method: 'POST',
+            // withCredentials: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Authorization': authorization
+            },
+            payload: JSON.stringify({outlineMarkdown: outline, asyncGenPptx: true, templateId}),
+        })
+        source.onmessage = function (data) {
+            let json = JSON.parse(data.data)
+            if (json.status == -1) {
+                alert('生成PPT异常：' + json.error)
+                return
+            }
+            if (json.pptId) {
+                document.getElementById('desc_msg').innerText = `正在生成中，进度 ${json.current}/${json.total}，请稍后...`
+                asyncGenPptxInfo(json.pptId)
+            }
+        }
+        source.onend = function (data) {
+            if (data.data.startsWith('{') && data.data.endsWith('}')) {
+                const json = JSON.parse(data.data)
+                if (json.code != 0) {
+                    alert('生成PPT异常：' + json.message)
+                    return
+                }
+            }
+            clearInterval(timer)
+            document.getElementById('desc').style.display = 'none'
+            document.getElementById('pptDownload').style.display = 'inline-block'
+            document.getElementById('insert_element').style.display = 'inline-block'
+            drawPptxList()
+        }
+        source.onerror = function (err) {
+            clearInterval(timer)
+            console.error('生成内容异常', err)
+            alert('生成内容异常')
+        }
+        source.stream()
+    }
+
+    function asyncGenPptxInfo(id) {
+        pptxId = id
+        let url = `${baseUrl}/api/ppt/asyncPptInfo?apiKey=${apiKey}&pptId=${pptxId}`
+        let xhr = new XMLHttpRequest()
+        xhr.open('GET', url, true)
+        xhr.setRequestHeader('token', apiKey)
+        xhr.setRequestHeader('Authorization', authorization)
+        xhr.send()
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    let resp = JSON.parse(xhr.responseText)
+                    let gzipBase64 = resp.data.pptxProperty
+                    let gzip = base64js.toByteArray(gzipBase64)
+                    let json = pako.ungzip(gzip, {to: 'string'})
+                    pptxObj = JSON.parse(json)
+                    drawPptxList(resp.data.current - 1, true)
+                }
+            }
+        }
+        xhr.onerror = function (e) {
+            console.error(e)
+            document.getElementById('desc').style.display = 'none'
+        }
+    }
+
+    async function drawPptxList(idx, asyncGen) {
+        if (idx == null || document.getElementById('img_' + idx) == null) {
+            let html = ''
+            for (let i = 0; i < pptxObj.pages.length; i++) {
+                if (asyncGen && i > idx) {
+                    break
+                }
+                html += '<div class="left_div_item" onclick="drawPptx(' + i + ')">'
+                html += '<div class="left_div_item_index">' + (i + 1) + '</div>'
+                html += '<canvas id="img_' + i + '" width="288" height="162" style="width: 144px;height: 81px;" class="left_div_item_img" />'
+                html += '</div>'
+            }
+            if (asyncGen && idx < pptxObj.pages.length - 1) {
+                html += '<div class="left_div_item">'
+                html += '<div class="left_div_item_index">' + (idx + 2) + '</div>'
+                html += '<div style="width: 144px;height: 81px;text-align: center;line-height: 81px;color: #666;cursor: default;" class="left_div_item_img">生成中...</div>'
+                html += '</div>'
+            }
+            let itemList = document.getElementById('left_image_list')
+            itemList.innerHTML = html
+            if (asyncGen) {
+                itemList.scrollBy(0, itemList.scrollHeight)
+            }
+            for (let i = 0; i < pptxObj.pages.length; i++) {
+                let imgCanvas = document.getElementById('img_' + i)
+                if (!imgCanvas) {
+                    continue
+                }
+                try {
+                    let _ppt2Canvas = new Ppt2Canvas(imgCanvas)
+                    await _ppt2Canvas.drawPptx(pptxObj, i)
+                } catch (e) {
+                    console.log('渲染第' + (i + 1) + '页封面异常', e)
+                }
+            }
+        } else if (idx != null) {
+            try {
+                let imgCanvas = document.getElementById('img_' + idx)
+                let _ppt2Canvas = new Ppt2Canvas(imgCanvas)
+                await _ppt2Canvas.drawPptx(pptxObj, idx)
+            } catch (e) {
+                console.log('渲染第' + (idx + 1) + '页封面异常', e)
+            }
+        }
+
+        drawPptx(idx || 0)
+    }
+
+    function drawPptx(idx) {
+        if (idx == 0) {
+            document.getElementById('img_0').scrollIntoView(true)
+        }
+        let lastSelect = document.getElementById('img_' + selectIdx)
+        lastSelect && lastSelect.classList.remove('item_select')
+        document.getElementById('right_canvas').style.display = 'block'
+        selectIdx = idx
+        let current = document.getElementById('img_' + idx)
+        current.classList.add('item_select')
+        painter.drawPptx(pptxObj, idx)
+    }
+
+    function downloadPptx() {
+        let download = document.getElementById('pptDownload')
+        // 渲染pptx并下载
+        if (download.innerText.indexOf('下载') == -1) {
+            return
+        }
+        download.innerText = '正在渲染中...'
+        let xhr = new XMLHttpRequest()
+        xhr.responseType = 'blob'
+        xhr.open('POST', `${baseUrl}/api/ppt/json2ppt?apiKey=${apiKey}`)
+        xhr.setRequestHeader('token', apiKey)
+        xhr.setRequestHeader('Authorization', authorization)
+        xhr.setRequestHeader('Content-Type', 'application/json')
+        xhr.onload = function () {
+            if (this.status == 200) {
+                download.innerText = '渲染pptx并下载'
+                let blob = this.response
+                if (blob.type == 'application/json') {
+                    const reader = new FileReader()
+                    reader.onload = function (e) {
+                        let json = JSON.parse(e.target.result)
+                        alert('下载失败：' + json.message)
+                    }
+                    reader.readAsText(blob)
+                    return
+                }
+                let a = document.createElement('a')
+                a.href = window.URL.createObjectURL(blob)
+                let name = 'download'
+                a.download = name + '.pptx'
+                a.click()
+            }
+        }
+        xhr.onerror = function (e) {
+            console.error(e)
+            download.innerText = '渲染pptx并下载'
+        }
+        xhr.send(JSON.stringify(pptxObj))
+    }
+
+    async function calcSubjectColor(src) {
+        let img = new Image()
+        await new Promise(resolve => {
+            let eqOrigin = src.startsWith('data:') || src.startsWith(document.location.origin) || (src.startsWith('//') && (document.location.protocol + src).startsWith(document.location.origin))
+            if (!eqOrigin) {
+                img.crossOrigin = 'anonymous'
+            }
+            img.src = src
+            img.onload = function () {
+                resolve(img)
+            }
+            img.onerror = function (e) {
+                resolve()
+            }
+        })
+        let canvas = document.createElement('canvas')
+        let ctx = canvas.getContext('2d')
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+        let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        let data = imageData.data
+        let map = {}
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i]
+            let g = data[i + 1]
+            let b = data[i + 2]
+            let rgb = r + g + b
+            if (rgb <= 50 || rgb >= 660) {
+                // 忽略黑白
+                continue
+            }
+            let color = `${r},${g},${b}`
+            map[color] = (map[color] || 0) + 1
+        }
+        let valueMap = {}
+        for (let k in map) {
+            let v = map[k]
+            let ks = valueMap[v]
+            if (ks) {
+                ks.push(k)
+            } else {
+                valueMap[v] = [k]
+            }
+        }
+        let colors = []
+        let values = Object.values(map).sort()
+        for (let i = values.length - 1; i >= 0; i--) {
+            let ks = valueMap[values[i]]
+            for (let j = 0; j < ks.length; j++) {
+                colors.push(ks[j])
+                if (colors.length >= 3) {
+                    break
+                }
+            }
+            if (colors.length >= 3) {
+                break
+            }
+        }
+        // return `rgb(${colors[0]})`
+        return `linear-gradient(to bottom right, rgb(${colors[0]}), rgb(${colors[1]}), rgb(${colors[2]}))`
+    }
+
+    function insertElement(type, subType) {
+        let element = null
+        if (type == 'text') {
+            // 文本
+            element = createTextBox(subType)
+        } else if (type == 'image') {
+            // 图片
+            let input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.jpg,.png'
+            input.onchange = function (e1) {
+                const file = e1.target.files[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = function (e2) {
+                    const base64 = e2.target.result
+                    const img = new Image()
+                    img.src = base64
+                    img.onload = function () {
+                        const width = img.width > 300 ? 300 : img.width
+                        const height = img.height * (width / img.width)
+                        element = createImage(base64, width, height)
+                        pptxObj.pages[selectIdx].children.push(element)
+                        painter.drawPptx(pptxObj, selectIdx)
+                    }
+                }
+                reader.readAsDataURL(file)
+            }
+            input.click()
+        } else if (type == 'geometry') {
+            // 形状
+            let geometryName = subType
+            if (!geometryName) {
+                // 随机形状
+                let keys = Object.keys(geometryMap)
+                geometryName = keys[Math.floor(Math.random() * keys.length)]
+                console.log('geometry', geometryName)
+            }
+            element = createGeometry(geometryName)
+        } else if (type == 'table') {
+            // 表格
+            let rowColumnDataList = [['第1行1列', '第1行2列', '第1行3列'], ['第2行1列', '第2行2列', '第2行3列'], ['第3行1列', '第3行2列', '第3行3列']]
+            element = createTable(rowColumnDataList)
+        } else if (type == 'chart') {
+            // 图表
+            let rowColumnDataList = []
+            if (subType == 'pie' || subType == 'doughnut') {
+                rowColumnDataList = [[' ', '销售额'], ['第一季度', '8.2'], ['第二季度', '3.2'], ['第三季度', '1.4'], ['第四季度', '1.2']]
+            } else {
+                rowColumnDataList = [[' ', '系列 1', '系列 2', '系列 3'], ['类别 1', '4.3', '2.4', '2'], ['类别 2', '2.5', '4.4', '2'], ['类别 3', '3.5', '1.8', '3'], ['类别 4', '4.5', '2.8', '5']]
+            }
+            element = createChart('图表标题', subType, rowColumnDataList)
+        }
+        if (element) {
+            pptxObj.pages[selectIdx].children.push(element)
+            painter.drawPptx(pptxObj, selectIdx)
+        }
+        document.getElementById('insert_element').value = ''
+    }
+
+    function resetSize() {
+        let width = Math.max(Math.min(document.body.clientWidth - 400, 1600), 480)
+        painter.resetSize(width, width * 0.5625)
+    }
+
+    window.addEventListener('resize', function () {
+        mTimer && clearTimeout(mTimer)
+        mTimer = setTimeout(() => {
+            resetSize()
+        }, 50)
+    })
+
+    document.getElementById('div1').style.display = 'block'
+
+    resetSize()
+</script>
+</body>
+</html>

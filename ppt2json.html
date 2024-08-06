@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>ppt2json</title>
+    <link rel="stylesheet" href="static/jsoneditor.min.css">
+    <script src="static/jsoneditor.min.js"></script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+            background-color: #fff;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #c1c1c1;
+        }
+        #json {
+            padding: 10px;
+        }
+        .jsoneditor-mode-view {
+            border: 2px solid #ddd;
+        }
+        .jsoneditor-menu {
+            display: none;
+        }
+        .jsoneditor-navigation-bar {
+            display: none;
+        }
+        .jsoneditor-outer.has-nav-bar.has-main-menu-bar {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        #pageList {
+            list-style-type: none;
+        }
+        #pageList li {
+            display: inline;
+            padding: 1px 4px;
+            margin-left: 8px;
+            cursor: pointer;
+        }
+        .selected {
+            color: green;
+            border: 1px solid green;
+        }
+        #container > svg {
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body style="margin: 20px">
+    <div>
+        <input id="file" type="file" accept="application/vnd.openxmlformats-officedocument.presentationml.presentation, application/json" onclick="document.getElementById('file').value = ''" onchange="ppt2json()" />
+        <span id="refresh_json" style="color: #999;cursor: pointer;margin-right: 15px;" title="刷新JSON数据" onclick="refreshJson()">刷新</span>
+        <span id="download_json" style="color: #317ef3;display: none;cursor: pointer;margin-right: 15px;" title="下载json数据" onclick="downloadJson()">下载json文件</span>
+        <span id="download_pptx" style="color: #317ef3;display: none;cursor: pointer;" title="渲染pptx并下载" onclick="json2ppt()">渲染pptx并下载</span>
+    </div>
+    <div id="json" style="margin-top: 20px"></div>
+    <div>
+        <ul id="pageList"></ul>
+        <span>编辑模式：</span>
+        <input id="mode_checkbox" type="checkbox" checked onchange="changeMode()" />
+        <select id="insert_element" style="display: none;margin-left: 10px" onchange="insertElement(this.value.split(',')[0], this.value.split(',')[1])">
+            <option value="">-- 插入元素 --</option>
+            <option value="text,title1">插入大标题</option>
+            <option value="text,title2">插入副标题</option>
+            <option value="text,content">插入正文文本</option>
+            <option value="image">插入图片</option>
+            <option value="geometry">插入随机形状</option>
+            <option value="table">插入表格</option>
+            <option value="chart,bar">插入柱状图</option>
+            <option value="chart,pie">插入饼图</option>
+            <option value="chart,doughnut">插入环形图</option>
+            <option value="chart,line">插入折线图</option>
+        </select>
+    </div>
+    <div id="container" style="margin-top: 10px;">
+        <svg id="ppt_svg"></svg>
+    </div>
+</body>
+<script src="static/chart.js"></script>
+<script src="static/geometry.js"></script>
+<script src="static/ppt2svg.js"></script>
+<script src="static/element.js"></script>
+<script>
+    const baseUrl = 'https://kfcv50.link/docmee/v1'; // 新增baseUrl变量
+    let apiKey = 'sk-XRxoiUHyUQYhhl8kD4272199Fb644e498895F3A58dD50a5b'; // 新增apiKey变量
+    const authorization = 'Bearer sk-XRxoiUHyUQYhhl8kD4272199Fb644e498895F3A58dD50a5b'; // 新增authorization变量
+    var editor = new JSONEditor(document.querySelector('#json'), {}, {})
+
+    var pptxObj = null
+    var selectIdx = 0
+    var mTimer = null
+    var ppt2svg = new Ppt2Svg('ppt_svg', 960, 540)
+
+    // 新增createApiToken函数
+    async function createApiToken() {
+        try {
+            const response = await fetch(`${baseUrl}/api/user/createApiToken`, {
+                method: 'POST',
+                headers: {
+                    'Api-Key': apiKey,
+                    'Authorization': apiKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    uid: '',
+                    limit: null
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.code !== 0) {
+                throw new Error(data.message);
+            }
+
+            apiKey = data.data.token;
+            console.log('API Token 创建成功');
+        } catch (error) {
+            console.error(`创建接口 token 异常：${error.message}`);
+        }
+    }
+
+
+    // 页面加载时调用createApiToken
+    window.onload = createApiToken;
+
+    function ppt2json() {
+        let file = document.getElementById('file').files[0]
+        if (file.name.endsWith('.json')) {
+            let reader = new FileReader()
+            reader.onload = function(e) {
+                let json = e.target.result
+                let pptxObj = JSON.parse(json)
+                editor.set(pptxObj)
+                drawPageList(pptxObj)
+            }
+            reader.onerror = function(e) {
+                editor.set({ message: '读取错误: ' + e.target.error })
+            }
+            reader.readAsText(file)
+            return
+        }
+		if (file.size > 1048576 * 50) {
+			alert('文件不能超过50M')
+			return
+		}
+        if (file) {
+            let formData = new FormData()
+            formData.append('file', file)
+            let xhr = new XMLHttpRequest()
+            xhr.open('POST', `${baseUrl}/api/ppt/ppt2json?apiKey=${apiKey}`)
+            xhr.setRequestHeader('token', apiKey)
+            xhr.setRequestHeader('authorization', authorization)
+            editor.set({ message: '解析中，请稍后...' })
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        // 解析
+                        let pptxObj = JSON.parse(xhr.responseText)
+                        if (pptxObj.code == -1 && pptxObj.message) {
+                            alert(pptxObj.message)
+                            return
+                        }
+                        editor.set(pptxObj)
+                        drawPageList(pptxObj)
+                    } else {
+                        editor.set({ message: 'http status: ' + xhr.status })
+                    }
+                }
+            }
+            xhr.send(formData)
+        } else {
+            editor.set({ message: '请选择文件' })
+        }
+    }
+
+    function json2ppt() {
+        if (!pptxObj) {
+            return
+        }
+        // 渲染pptx并下载
+        if (download_pptx.innerText.indexOf('下载') == -1) {
+            return
+        }
+        download_pptx.innerText = '正在渲染中...'
+        let xhr = new XMLHttpRequest()
+        xhr.responseType = 'blob'
+        xhr.open('POST', `${baseUrl}/api/ppt/json2ppt?apiKey=${apiKey}`)
+        xhr.setRequestHeader('Content-Type', 'application/json')
+        xhr.setRequestHeader('token', apiKey)
+        xhr.setRequestHeader('authorization', authorization)
+        xhr.onload = function() {
+            if (this.status == 200) {
+                download_pptx.innerText = '渲染pptx并下载'
+                let blob = this.response
+                if (blob.type == 'application/json') {
+                    const reader = new FileReader()
+                    reader.onload = function(e) {
+                        let json = JSON.parse(e.target.result)
+                        alert('下载失败：' + json.message)
+                    }
+                    reader.readAsText(blob)
+                    return
+                }
+                let a = document.createElement('a')
+                a.href = window.URL.createObjectURL(blob)
+                let name = 'download'
+                let file = document.getElementById('file').files[0]
+                if (file) {
+                    name = file.name.replace('.pptx', '').replace('.json', '')
+                }
+                a.download = name + '.pptx'
+                a.click()
+            }
+        }
+        xhr.send(JSON.stringify(pptxObj))
+    }
+
+    function downloadJson() {
+        if (!pptxObj) {
+            return
+        }
+        let urlObject = window.URL || window.webkitURL || window
+        let export_blob = new Blob([JSON.stringify(pptxObj)])
+        let save_link = document.createElement('a')
+        save_link.href = urlObject.createObjectURL(export_blob)
+        let name = 'download'
+        let file = document.getElementById('file').files[0]
+        if (file) {
+            name = file.name.replace('.pptx', '').replace('.json', '')
+        }
+        save_link.download = name + '.json'
+        save_link.click()
+    }
+
+    function drawPageList(_pptxObj) {
+        counter = 0
+        selectIdx = 0
+        imageCache = {}
+        pptxObj = _pptxObj
+        document.getElementById('download_json').style.display = 'inline'
+        document.getElementById('download_pptx').style.display = 'inline'
+        document.getElementById('insert_element').style.display = document.getElementById('mode_checkbox').checked ? 'inline-block' : 'none'
+        let pageList = document.getElementById('pageList')
+        pageList.innerHTML = '';
+        for (let i = 0; i < pptxObj.pages.length; i++) {
+            let page = pptxObj.pages[i]
+            let li = document.createElement('li')
+            li.id = 'li_' + i
+            li.innerText = i + 1 + ''
+            li.addEventListener('click', () => {
+                document.getElementById('li_' + selectIdx).classList.remove('selected')
+                selectIdx = i
+                li.classList.add('selected')
+                ppt2svg.drawPptx(pptxObj, selectIdx)
+            })
+            if (i == selectIdx) {
+                li.classList.add('selected')
+            }
+            pageList.appendChild(li)
+        }
+        ppt2svg.drawPptx(pptxObj, selectIdx)
+    }
+
+    function refreshJson() {
+        pptxObj = editor.get()
+        ppt2svg.drawPptx(pptxObj, selectIdx)
+    }
+
+    function changeMode() {
+        ppt2svg.setMode(document.getElementById('mode_checkbox').checked ? 'edit' : 'view')
+        document.getElementById('insert_element').style.display = pptxObj && document.getElementById('mode_checkbox').checked ? 'inline-block' : 'none'
+    }
+
+    ppt2svg.onchange = (elementObj) => {
+        editor.set(pptxObj)
+    }
+
+    changeMode()
+
+    function insertElement(type, subType) {
+        let element = null
+        if (type == 'text') {
+            // 文本
+           element = createTextBox(subType)
+        } else if (type == 'image') {
+            // 图片
+            let input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.jpg,.png'
+            input.onchange = function(e1) {
+                const file = e1.target.files[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = function(e2) {
+                    const base64 = e2.target.result
+                    const img = new Image()
+                    img.src = base64
+                    img.onload = function() {
+                        const width = img.width > 300 ? 300 : img.width
+                        const height = img.height * (width / img.width)
+                        element = createImage(base64, width, height)
+                        pptxObj.pages[selectIdx].children.push(element)
+                        ppt2svg.drawPptx(pptxObj, selectIdx)
+                    }
+                }
+                reader.readAsDataURL(file)
+            }
+            input.click()
+        } else if (type == 'geometry') {
+            // 形状
+            let geometryName = subType
+            if (!geometryName) {
+                // 随机形状
+                let keys = Object.keys(geometryMap)
+                geometryName = keys[Math.floor(Math.random() * keys.length)]
+                console.log('geometry', geometryName)
+            }
+            element = createGeometry(geometryName)
+        } else if (type == 'table') {
+            // 表格
+            let rowColumnDataList = [['第1行1列', '第1行2列', '第1行3列'], ['第2行1列', '第2行2列', '第2行3列'], ['第3行1列', '第3行2列', '第3行3列']]
+            element = createTable(rowColumnDataList)
+        } else if (type == 'chart') {
+            // 图表
+            let rowColumnDataList = []
+            if (subType == 'pie' || subType == 'doughnut') {
+                rowColumnDataList = [[' ','销售额'], ['第一季度','8.2'], ['第二季度','3.2'], ['第三季度','1.4'], ['第四季度','1.2']]
+            } else {
+                rowColumnDataList = [[' ','系列 1','系列 2','系列 3'], ['类别 1','4.3','2.4','2'], ['类别 2','2.5','4.4','2'], ['类别 3','3.5','1.8','3'], ['类别 4','4.5','2.8','5']]
+            }
+            element = createChart('图表标题', subType, rowColumnDataList)
+        }
+        if (element) {
+            pptxObj.pages[selectIdx].children.push(element)
+            ppt2svg.drawPptx(pptxObj, selectIdx)
+        }
+        document.getElementById('insert_element').value = ''
+    }
+</script>
+</html>
